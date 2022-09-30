@@ -1,6 +1,10 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import random
 import re
 import time
+from PIL import ImageOps, Image
+
 from lxml import etree
 import requests
 from proxy_config import login, password, proxy
@@ -34,7 +38,7 @@ def get_data(url):
 
         soup = BeautifulSoup(response.text, 'lxml')
         links_list = []
-        with open(file=f'links_{cur_date}.txt', mode='a') as file:
+        with open(file=f'links_{cur_date}.txt', mode='a', encoding='utf-8') as file:
             for link in soup.select('.page-list-item .header a'):
                 links_list.append(link.get('href'))
                 # print(link.get('href'))
@@ -49,69 +53,127 @@ def get_data(url):
 
 
 def parse_advert(url):
-    # time.sleep(random.randint(2, 3))  # set timeout if we dont have parse items
+    data = []
     response = session.get(url=url, headers=headers)
     soup = BeautifulSoup(response.text, 'lxml')
+    # search link
+    try:
+        search_link = soup.select('.bread-crumbs .search-link')[0].text.strip()
+    except:
+        search_link = soup.select(".bread-crumbs [itemprop='itemListElement'] a span")[-1-1].text.strip()
+    # category
+    category = soup.select(".bread-crumbs [itemprop='itemListElement'] a span")[-1].text.strip()
     # title
     title = etree.HTML(str(soup)).xpath('//div[@class="card-m"]//h1')[0].text.strip()
-    # title = '2'
     # description
-    description = soup.find('div', id='description').text.strip()
+    description = replace_chars(soup.find('div', id='description').text.strip())
     # contact name
     try:
         contact_name = etree.HTML(str(soup)).xpath('//div[@class="user-name"]')[0].text.strip()
     except:
         contact_name = etree.HTML(str(soup)).xpath('//div[@class="user-name"]/span')[0].text.strip()
-
     # company info
     company_info = etree.HTML(str(soup)).xpath("//div[@class='contacts-block']//div[@class='company-info']//span")[
         0].text.strip()
     company_info_2 = etree.HTML(str(soup)).xpath("//div[@class='contacts-block']//div[@class='company-info']//span")[
-        1].text.strip()
+        1].text.strip().split(',')[0]
     # count adv
     count_adv = etree.HTML(str(soup)).xpath("//div[@class='contacts-block']//div[@class='company-ads-link']/a")[
         0].text.strip()
     # photo
-    photo_links_list = []
-    photo_col = soup.select('.card-m .small-photos-block img')
-    for photo in photo_col:
-        photo_link = photo.get('src').replace('.jpg', '_big.jpg')
-        photo_links_list.append(photo_link)
-        # print(photo_link) # if need download pics uncomment this block
-        # download pics
-        # img_data = requests.get(photo_link).content
-        # result = re.search(r'[\w-]+\.jpg', photo_link)
-        # print(result.group(0))
-        # with open('pics/'+result.group(0), 'wb') as handler:
-        #     handler.write(img_data)
-
+    photo_list = save_photo(soup.select('.card-m .small-photos-block img'))
     # phones
+    phone_list = get_phones(soup.select('a.tel'))
+
+    data.append(url)
+    data.append(search_link)
+    data.append(category)
+    data.append(title)
+    data.append(description)
+    data.append(contact_name)
+    data.append(company_info)
+    data.append(company_info_2)
+    data.append(count_adv)
+    data.append(photo_list)
+    data.append(phone_list)
+    print(url)
+    print(" ->")
+    # print(search_link)
+    # print(category)
+    # print(title)
+    # print(description)
+    # print(contact_name)
+    # print(company_info)
+    # print(company_info_2)
+    # print(count_adv)
+    # print(photo_list)
+    # print(phone_list)
+    time.sleep(random.randint(5, 13))  # set timeout if we dont have parse items
+    return data
+
+
+def replace_chars(string_data):
+    replace_list = ['×', ';', "\n", "  "]
+    result = string_data
+    for repl in replace_list:
+        result = result.replace(repl, " ")
+
+    return result
+
+
+def get_phones(phone_col):
     phones_list = []
-    phone_col = soup.select('a.tel')
     for phone in phone_col:
         phone_i = phone.text.replace(' ', '').replace('(', '').replace(')', '').replace('-', '').replace('+38', '')
         phones_list.append(phone_i)
-        # print(phone_i)
 
-    print(title)
-    print(description)
-    print(contact_name)
-    print(company_info, company_info_2)
-    print(count_adv)
-    print(', '.join(photo_links_list))
-    print(', '.join(phones_list))
+    return ', '.join(phones_list)
 
 
 def read_adverts_file():
     with open(file=f'links_{cur_date}.txt') as file:
         adverts = file.readlines()
         for adv in adverts:
-            parse_advert(url=adv.strip())
+            write_csv_file(parse_advert(url=adv.strip()))
+
+
+def crop_pic(path_pic):
+    # box = (left, upper, right, lower)
+    box = (0, 0, 0, 35)
+    img = Image.open(path_pic)
+    im_crop_outside = ImageOps.crop(img, box)
+    im_crop_outside.save(path_pic, quality=75)
+    return path_pic
+
+
+def save_photo(photo_col):
+    photo_links_list_or = []
+    photo_links_list = []
+    for photo in photo_col:
+        photo_link = photo.get('src').replace('.jpg', '_big.jpg')
+        photo_links_list_or.append(photo_link)
+        print(photo_link)
+        img_data = requests.get(photo_link).content
+        result = re.search(r'[\w-]+\.jpg', photo_link)
+        photo_path = 'pics/' + result.group(0)
+        with open(photo_path, 'wb') as handler:
+            handler.write(img_data)
+            time.sleep(1)
+
+        photo_links_list.append(crop_pic(photo_path))
+
+    return ', '.join(photo_links_list)
+
+
+def write_csv_file(data):
+    with open(file=f'data_{cur_date}.csv', mode='a', encoding='utf-8') as file:
+        file.write(';'.join(data)+'\n')
+        # writer.writerow(data)
 
 
 def main():
     # replace link to needed directory of scraping
-    get_data(url='https://flagma.ua/products/uslugi-uborki-urozhaya/')
+    # get_data(url='https://flagma.ua/products/uslugi-uborki-urozhaya/')
     read_adverts_file()
 
 
