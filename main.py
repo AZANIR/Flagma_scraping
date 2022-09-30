@@ -60,11 +60,18 @@ def parse_advert(url):
     try:
         search_link = soup.select('.bread-crumbs .search-link')[0].text.strip()
     except:
-        search_link = soup.select(".bread-crumbs [itemprop='itemListElement'] a span")[-1-1].text.strip()
+        search_link = soup.select(".bread-crumbs [itemprop='itemListElement'] a span")[-1 - 1].text.strip()
     # category
     category = soup.select(".bread-crumbs [itemprop='itemListElement'] a span")[-1].text.strip()
     # title
     title = etree.HTML(str(soup)).xpath('//div[@class="card-m"]//h1')[0].text.strip()
+    try:
+        price = soup.select(".price-block [itemprop='price']")[0].text.strip()
+        price_cur = soup.select(".price-block [itemprop='priceCurrency']")[0].text.strip()
+        price_unit = soup.select(".price-block .price-unit")[0].text.strip()
+        price_final = f'{price}|{price_cur}|{price_unit}'
+    except:
+        price_final = soup.select('.price-block .price-unknown')[0].text.strip()
     # description
     description = replace_chars(soup.find('div', id='description').text.strip())
     # contact name
@@ -75,7 +82,7 @@ def parse_advert(url):
     # company info
     company_info = etree.HTML(str(soup)).xpath("//div[@class='contacts-block']//div[@class='company-info']//span")[
         0].text.strip()
-    company_info_2 = etree.HTML(str(soup)).xpath("//div[@class='contacts-block']//div[@class='company-info']//span")[
+    company_geo = etree.HTML(str(soup)).xpath("//div[@class='contacts-block']//div[@class='company-info']//span")[
         1].text.strip().split(',')[0]
     # count adv
     count_adv = etree.HTML(str(soup)).xpath("//div[@class='contacts-block']//div[@class='company-ads-link']/a")[
@@ -89,25 +96,27 @@ def parse_advert(url):
     data.append(search_link)
     data.append(category)
     data.append(title)
+    data.append(price_final)
     data.append(description)
     data.append(contact_name)
     data.append(company_info)
-    data.append(company_info_2)
+    data.append(company_geo)
     data.append(count_adv)
     data.append(photo_list)
     data.append(phone_list)
     print(url)
     print(" ->")
-    # print(search_link)
-    # print(category)
-    # print(title)
-    # print(description)
-    # print(contact_name)
-    # print(company_info)
-    # print(company_info_2)
-    # print(count_adv)
-    # print(photo_list)
-    # print(phone_list)
+    print(search_link)
+    print(category)
+    print(title)
+    print(price_final)
+    print(description)
+    print(contact_name)
+    print(company_info)
+    print(company_geo)
+    print(count_adv)
+    print(photo_list)
+    print(phone_list)
     time.sleep(random.randint(5, 13))  # set timeout if we dont have parse items
     return data
 
@@ -167,7 +176,7 @@ def save_photo(photo_col):
 
 def write_csv_file(data):
     with open(file=f'data_{cur_date}.csv', mode='a', encoding='utf-8') as file:
-        file.write(';'.join(data)+'\n')
+        file.write(';'.join(data) + '\n')
         # writer.writerow(data)
 
 
